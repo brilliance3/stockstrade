@@ -25,9 +25,16 @@ def build_chart_image_prompt(mode: str, user_note: str | None = None) -> str:
     return base.strip()
 
 
-def build_symbol_prompt(payload: dict) -> str:
+def build_symbol_prompt(payload: dict, reference_url: str | None = None) -> str:
+    reference_line = ""
+    if reference_url:
+        reference_line = (
+            f"\n참고 URL: {reference_url}\n"
+            "위 링크의 퍼스트 프린시플 트레이딩 관점을 참고하되, 접근 불가 시 일반 원칙 기반으로 분석하라.\n"
+        )
     return f"""
 다음 종목 입력 정보로 조건 판단형 분석을 수행하라.
 입력: {payload}
+{reference_line}
 JSON만 출력하라.
 """.strip()

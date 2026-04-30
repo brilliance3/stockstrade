@@ -12,14 +12,20 @@ from app.services.prompt_service import build_chart_image_prompt, build_system_p
 
 
 def _client() -> OpenAI:
+    # Priority:
+    # 1) Process env (export OPENAI_API_KEY=...)
+    # 2) .env value loaded by load_dotenv() in app.main
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다.")
+        raise RuntimeError(
+            "OPENAI_API_KEY가 설정되지 않았습니다. "
+            "backend/.env 또는 시스템 환경변수(export OPENAI_API_KEY=...)로 설정해주세요."
+        )
     return OpenAI(api_key=api_key)
 
 
 def analyze_chart_image(image_bytes: bytes, mode: str, user_note: str | None = None) -> dict:
-    model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+    model = os.getenv("OPENAI_MODEL", "gpt-5-mini")
     b64 = base64.b64encode(image_bytes).decode("utf-8")
     client = _client()
     response = client.responses.create(
@@ -40,15 +46,35 @@ def analyze_chart_image(image_bytes: bytes, mode: str, user_note: str | None = N
 
 
 def analyze_symbol_input(payload: AnalyzeSymbolRequest) -> dict:
-    model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+    model = os.getenv("OPENAI_MODEL", "gpt-5-mini")
     client = _client()
-    response = client.responses.create(
-        model=model,
-        input=[
-            {"role": "system", "content": build_system_prompt()},
-            {"role": "user", "content": build_symbol_prompt(payload.model_dump())},
-        ],
-    )
+    reference_url = os.getenv("CHATGPT_REFERENCE_URL")
+    use_web_search = os.getenv("ENABLE_CHATGPT_WEB_SEARCH", "false").lower() == "true"
+
+    base_input = [
+        {"role": "system", "content": build_system_prompt()},
+        {"role": "user", "content": build_symbol_prompt(payload.model_dump(), reference_url)},
+    ]
+
+    try:
+        if use_web_search:
+            response = client.responses.create(
+                model=model,
+                input=base_input,
+                tools=[{"type": "web_search_preview"}],
+            )
+        else:
+            response = client.responses.create(
+                model=model,
+                input=base_input,
+            )
+    except Exception:
+        # If web-search tool is unavailable for selected model/account, fallback to base inference.
+        response = client.responses.create(
+            model=model,
+            input=base_input,
+        )
+
     text = response.output_text
     return _safe_json_parse(text)
 
