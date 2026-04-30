@@ -23,7 +23,7 @@ uvicorn app.main:app --reload --port 8000
 ```bash
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_MODEL=gpt-5-mini
-ALLOWED_ORIGINS=http://localhost:5173
+ALLOWED_ORIGINS=http://localhost:5173,https://brilliance3.github.io
 ENABLE_CHATGPT_WEB_SEARCH=false
 CHATGPT_REFERENCE_URL=https://chatgpt.com/g/g-69aa700a96688191984fbf6ae989c093-peoseuteu-peurinsipeol-teureideo
 ```
