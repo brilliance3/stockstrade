@@ -131,9 +131,21 @@ function buildDemoResponse(input: {
   currentPrice?: number | null;
 }): AnalysisApiResponse {
   const symbol = (input.symbol || "UNKNOWN").toUpperCase();
-  const currentPrice = input.currentPrice ?? null;
+  const guessedPrice = input.source === "image" ? 100 : 50000;
+  const currentPrice = input.currentPrice ?? guessedPrice;
   const waitingMessage =
     "백엔드가 연결되지 않아 데모 분석 결과를 표시합니다. 실제 분석을 위해 VITE_API_BASE_URL 설정이 필요합니다.";
+  const support1 = roundPrice(currentPrice * 0.95);
+  const support2 = roundPrice(currentPrice * 0.9);
+  const resistance1 = roundPrice(currentPrice * 1.04);
+  const resistance2 = roundPrice(currentPrice * 1.08);
+  const stopLoss = roundPrice(currentPrice * 0.93);
+  const target1 = roundPrice(currentPrice * 1.06);
+  const target2 = roundPrice(currentPrice * 1.12);
+  const trend = input.mode === "longterm" ? "uptrend" : "sideways";
+  const trendStrength = input.mode === "daytrade" ? "weak" : "medium";
+  const entryGrade = input.mode === "daytrade" ? "C" : "B";
+  const riskReward = calcRiskReward(currentPrice, stopLoss, target1);
 
   return {
     success: true,
@@ -143,48 +155,99 @@ function buildDemoResponse(input: {
       market: input.market ?? "UNKNOWN",
       timeframe: input.mode === "daytrade" ? "1H" : "1D",
       currentPrice,
-      trend: "unknown",
-      trendStrength: "unknown",
-      supportLevels: [],
-      resistanceLevels: [],
+      trend,
+      trendStrength,
+      supportLevels: [
+        {
+          price: support1,
+          label: "1차 지지",
+          reason: "현재가 기준 -5% 구간(데모 계산)",
+          confidence: "medium",
+        },
+        {
+          price: support2,
+          label: "2차 지지",
+          reason: "현재가 기준 -10% 구간(데모 계산)",
+          confidence: "low",
+        },
+      ],
+      resistanceLevels: [
+        {
+          price: resistance1,
+          label: "1차 저항",
+          reason: "현재가 기준 +4% 구간(데모 계산)",
+          confidence: "medium",
+        },
+        {
+          price: resistance2,
+          label: "2차 저항",
+          reason: "현재가 기준 +8% 구간(데모 계산)",
+          confidence: "low",
+        },
+      ],
       volumeAnalysis: {
-        visible: false,
-        interpretation: "데모 모드에서는 거래량 분석이 비활성화됩니다.",
-        recentVolumeTrend: "unknown",
+        visible: true,
+        interpretation: "거래량은 중립으로 가정했습니다(백엔드 미연결 데모).",
+        recentVolumeTrend: "neutral",
         warning: waitingMessage,
       },
       entryJudgment: {
-        grade: "C",
+        grade: entryGrade,
         action: "wait",
-        reason: waitingMessage,
-        idealEntryZone: "백엔드 연결 후 계산",
-        stopLoss: null,
-        targetPrice1: null,
-        targetPrice2: null,
-        riskRewardRatio: "계산 불가",
+        reason: "현재 구간은 데모 계산상 관찰 우선입니다. 지지 확인 후 분할 접근이 유리합니다.",
+        idealEntryZone: `${support1} ~ ${support2}`,
+        stopLoss,
+        targetPrice1: target1,
+        targetPrice2: target2,
+        riskRewardRatio: riskReward,
       },
       exitJudgment: {
         action: "hold",
-        reason: "데모 모드에서는 실제 매도 판단이 제공되지 않습니다.",
-        invalidationPrice: null,
-        profitTakingZone: "백엔드 연결 후 계산",
+        reason: "추세가 유지되는 동안 보유, 저항 접근 시 분할 익절 관점입니다(데모 계산).",
+        invalidationPrice: stopLoss,
+        profitTakingZone: `${target1} ~ ${target2}`,
       },
       riskFactors: [
         waitingMessage,
         `요청 소스: ${input.source}`,
         input.note ? `사용자 메모: ${input.note}` : "사용자 메모 없음",
+        "실제 차트 캔들/거래량 인식은 백엔드 연결 후 제공됩니다.",
       ],
       scenarios: [
         {
-          scenarioName: "데모 모드",
-          condition: "VITE_API_BASE_URL 미설정",
-          expectedMove: "실제 차트 해석 미실행",
-          action: "백엔드 URL 설정 후 재시도",
+          scenarioName: "상방 시나리오",
+          condition: `${resistance1} 상향 돌파`,
+          expectedMove: `${target1} ~ ${target2} 구간 시도`,
+          action: "보유 또는 눌림 재진입 관찰",
+        },
+        {
+          scenarioName: "중립 시나리오",
+          condition: `${support1} ~ ${resistance1} 박스권`,
+          expectedMove: "횡보 지속 가능성",
+          action: "관망, 거래량 동반 돌파 대기",
+        },
+        {
+          scenarioName: "하방 시나리오",
+          condition: `${stopLoss} 이탈`,
+          expectedMove: `${support2} 재테스트 가능성`,
+          action: "리스크 축소 및 재분석",
         },
       ],
-      finalConclusion: waitingMessage,
+      finalConclusion:
+        "백엔드 미연결 상태에서 로컬 규칙 기반으로 계산된 임시 분석입니다. 실제 AI 차트 인식 결과와는 다를 수 있습니다.",
       tradingNote:
-        "- 현재 결과는 데모 모드\n- 저장소 Variables 또는 frontend/.env에 VITE_API_BASE_URL 설정\n- 배포 재실행 후 실제 분석 가능",
+        `- 현재가: ${currentPrice}\n- 관심 구간: ${support1} ~ ${support2}\n- 손절 기준: ${stopLoss}\n- 목표 구간: ${target1} / ${target2}\n- 실제 분석 적용: VITE_API_BASE_URL 설정 후 재시도`,
     },
   };
+}
+
+function roundPrice(price: number): number {
+  if (price >= 1000) return Math.round(price);
+  return Number(price.toFixed(2));
+}
+
+function calcRiskReward(current: number, stopLoss: number, target: number): string {
+  const risk = Math.max(current - stopLoss, 0.0001);
+  const reward = Math.max(target - current, 0);
+  return `${(reward / risk).toFixed(2)} : 1`;
 }
