@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const modeSchema = z.enum(["swing", "longterm", "daytrade", "etf"]);
+export const modeSchema = z.enum(["swing", "longterm", "daytrade"]);
 
 const priceLevelSchema = z.object({
   price: z.number().nullable().optional().default(null),

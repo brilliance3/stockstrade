@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { analyzeChartImage, analyzeSymbol, saveHistory } from "../api/analysisApi";
 import type { ChartAnalysisResult, SymbolAnalyzePayload } from "../types/analysis";
 import { AnalysisResult } from "../components/AnalysisResult";
@@ -8,7 +8,7 @@ type Mode = SymbolAnalyzePayload["mode"];
 
 const initialSymbolForm: SymbolAnalyzePayload = {
   symbol: "",
-  market: "NASDAQ",
+  market: "미국",
   currentPrice: null,
   averageBuyPrice: null,
   holdingQuantity: null,
@@ -17,12 +17,23 @@ const initialSymbolForm: SymbolAnalyzePayload = {
 };
 
 export function AnalyzePage() {
+  const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<Mode>("swing");
   const [file, setFile] = useState<File | null>(null);
   const [symbolForm, setSymbolForm] = useState<SymbolAnalyzePayload>(initialSymbolForm);
   const [result, setResult] = useState<ChartAnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const symbol = searchParams.get("symbol");
+    const question = searchParams.get("q");
+    setSymbolForm((prev) => ({
+      ...prev,
+      symbol: symbol ? symbol.toUpperCase() : prev.symbol,
+      userQuestion: question ?? prev.userQuestion,
+    }));
+  }, [searchParams]);
 
   const runImageAnalysis = async () => {
     if (!file) return setError("이미지를 먼저 선택해주세요.");
@@ -82,12 +93,15 @@ export function AnalyzePage() {
             value={symbolForm.symbol}
             onChange={(e) => setSymbolForm((prev) => ({ ...prev, symbol: e.target.value.toUpperCase() }))}
           />
-          <input
-            placeholder="시장 (예: NASDAQ)"
+          <select
             className="rounded-full border border-slate-300 px-4 py-2 text-sm"
             value={symbolForm.market}
             onChange={(e) => setSymbolForm((prev) => ({ ...prev, market: e.target.value }))}
-          />
+          >
+            <option value="미국">미국</option>
+            <option value="한국">한국</option>
+            <option value="일본">일본</option>
+          </select>
           <select
             className="rounded-full border border-slate-300 px-4 py-2 text-sm"
             value={mode}
@@ -96,7 +110,6 @@ export function AnalyzePage() {
             <option value="swing">스윙</option>
             <option value="longterm">장기</option>
             <option value="daytrade">단기</option>
-            <option value="etf">ETF</option>
           </select>
         </div>
 

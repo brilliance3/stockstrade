@@ -6,7 +6,8 @@ import type {
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 const HISTORY_KEY = "fpt_analysis_history";
-const REQUEST_TIMEOUT_MS = 20000;
+const SYMBOL_REQUEST_TIMEOUT_MS = 240000;
+const IMAGE_REQUEST_TIMEOUT_MS = 300000;
 
 function resolveApiBaseUrl(): string {
   const envBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
@@ -21,14 +22,17 @@ function withApiBase(path: string): string {
   return `${resolveApiBaseUrl()}${path}`;
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return fetch(url, init);
+  }
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("요청 시간이 초과되었습니다. 서버 상태를 확인해주세요.");
+      throw new Error("응답 지연이 길어 자동 중단되었습니다. 잠시 후 다시 시도해주세요.");
     }
     throw error;
   } finally {
@@ -49,7 +53,7 @@ export async function analyzeChartImage(
   const response = await fetchWithTimeout(withApiBase("/api/analyze/chart-image"), {
     method: "POST",
     body: formData,
-  });
+  }, IMAGE_REQUEST_TIMEOUT_MS);
   return handleResponse(response);
 }
 
@@ -60,7 +64,7 @@ export async function analyzeSymbol(
     method: "POST",
     headers: JSON_HEADERS,
     body: JSON.stringify(payload),
-  });
+  }, SYMBOL_REQUEST_TIMEOUT_MS);
   return handleResponse(response);
 }
 

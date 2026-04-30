@@ -70,6 +70,6 @@ export interface SymbolAnalyzePayload {
   currentPrice?: number | null;
   averageBuyPrice?: number | null;
   holdingQuantity?: number | null;
-  mode: "swing" | "longterm" | "daytrade" | "etf";
+  mode: "swing" | "longterm" | "daytrade";
   userQuestion?: string;
 }

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { validateUploadImage } from "./image.js";
 import { applyFirstPrincipleRules } from "./rules.js";
 import { analyzeSymbolRequestSchema, modeSchema } from "./schema.js";
-import { analyzeChartImage, analyzeSymbolInput, buildFallbackFromSymbol, newAnalysisId } from "./vision.js";
+import { analyzeChartImage, analyzeSymbolInput, buildFallbackFromImage, buildFallbackFromSymbol, newAnalysisId } from "./vision.js";
 
 type HistoryItem = { id: string; symbol: string; summary: string };
 const HISTORY: HistoryItem[] = [];
@@ -52,6 +52,10 @@ function parseMultipart(req: any): Promise<{ fields: Record<string, string>; fil
       });
     });
     bb.on("error", reject);
+    if (req.rawBody && Buffer.isBuffer(req.rawBody)) {
+      bb.end(req.rawBody);
+      return;
+    }
     req.pipe(bb);
   });
 }
@@ -85,10 +89,10 @@ async function handleChartImage(req: any, res: any): Promise<void> {
     json(res, 200, { success: true, analysisId, result });
   } catch (error) {
     logger.error("chart-image analyze failed", error);
-    json(res, 500, {
-      success: false,
-      detail: `이미지 분석 중 오류가 발생했습니다: ${error instanceof Error ? error.message : "unknown"}`,
-    });
+    const result = applyFirstPrincipleRules(buildFallbackFromImage(mode, userNote));
+    const analysisId = newAnalysisId();
+    addHistory(analysisId, result.symbol, result.finalConclusion);
+    json(res, 200, { success: true, analysisId, result });
   }
 }
 
@@ -126,24 +130,41 @@ function handleHistory(res: any): void {
   json(res, 200, { success: true, items: [...HISTORY].slice(-30).reverse() });
 }
 
-export const api = onRequest({ timeoutSeconds: 120, memory: "1GiB" }, (req, res) => {
+export const api = onRequest(
+  {
+    timeoutSeconds: 120,
+    memory: "1GiB",
+    invoker: "public",
+    secrets: ["OPENAI_API_KEY"],
+  },
+  (req, res) => {
   corsHandler(req, res, async () => {
-    if (req.path === "/health" && req.method === "GET") {
-      json(res, 200, { ok: true });
-      return;
+    try {
+      if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+      }
+      const path = req.path || "/";
+      if (path === "/health" && req.method === "GET") {
+        json(res, 200, { ok: true });
+        return;
+      }
+      if ((path === "/api/analyze/history" || path === "/analyze/history") && req.method === "GET") {
+        handleHistory(res);
+        return;
+      }
+      if ((path === "/api/analyze/symbol" || path === "/analyze/symbol") && req.method === "POST") {
+        await handleSymbol(req, res);
+        return;
+      }
+      if ((path === "/api/analyze/chart-image" || path === "/analyze/chart-image") && req.method === "POST") {
+        await handleChartImage(req, res);
+        return;
+      }
+      json(res, 404, { success: false, detail: "Not found" });
+    } catch (error) {
+      logger.error("Unhandled API error", error);
+      json(res, 500, { success: false, detail: "서버 처리 중 오류가 발생했습니다." });
     }
-    if (req.path === "/api/analyze/history" && req.method === "GET") {
-      handleHistory(res);
-      return;
-    }
-    if (req.path === "/api/analyze/symbol" && req.method === "POST") {
-      await handleSymbol(req, res);
-      return;
-    }
-    if (req.path === "/api/analyze/chart-image" && req.method === "POST") {
-      await handleChartImage(req, res);
-      return;
-    }
-    json(res, 404, { success: false, detail: "Not found" });
   });
 });
