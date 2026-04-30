@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { analyzeChartImage, analyzeSymbol, saveHistory } from "../api/analysisApi";
 import type { ChartAnalysisResult, SymbolAnalyzePayload } from "../types/analysis";
-import { ImageUploader } from "../components/ImageUploader";
 import { AnalysisResult } from "../components/AnalysisResult";
 
 type Mode = SymbolAnalyzePayload["mode"];
@@ -56,93 +55,87 @@ export function AnalyzePage() {
   };
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-2xl font-bold">차트 분석</h2>
+    <main className="mx-auto min-h-screen w-full max-w-5xl p-4 md:p-8">
+      <div className="mb-6 flex items-center gap-2">
+        <h2 className="mr-4 text-2xl font-semibold text-slate-700">FPT</h2>
+        <Link
+          to="/"
+          className="flex-1 rounded-full border border-slate-300 bg-white px-5 py-3 text-left text-slate-500 shadow-sm"
+        >
+          새로운 분석 검색
+        </Link>
         <div className="flex gap-2">
-          <Link to="/" className="rounded border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800">
+          <Link to="/" className="rounded px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">
             홈
           </Link>
-          <Link to="/history" className="rounded border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800">
+          <Link to="/history" className="rounded px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">
             기록
           </Link>
         </div>
       </div>
 
-      <section className="mb-4 rounded-xl border border-slate-700 bg-slate-900 p-4">
-        <label className="mb-2 block text-sm text-slate-300">분석 모드</label>
-        <select
-          className="rounded border border-slate-600 bg-slate-950 p-2"
-          value={mode}
-          onChange={(e) => setMode(e.target.value as Mode)}
-        >
-          <option value="swing">스윙</option>
-          <option value="longterm">장기</option>
-          <option value="daytrade">단기</option>
-          <option value="etf">ETF</option>
-        </select>
-      </section>
+      <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="grid gap-3 md:grid-cols-4">
+          <input
+            placeholder="종목명 (예: QQQ)"
+            className="md:col-span-2 rounded-full border border-slate-300 px-4 py-2 text-sm"
+            value={symbolForm.symbol}
+            onChange={(e) => setSymbolForm((prev) => ({ ...prev, symbol: e.target.value.toUpperCase() }))}
+          />
+          <input
+            placeholder="시장 (예: NASDAQ)"
+            className="rounded-full border border-slate-300 px-4 py-2 text-sm"
+            value={symbolForm.market}
+            onChange={(e) => setSymbolForm((prev) => ({ ...prev, market: e.target.value }))}
+          />
+          <select
+            className="rounded-full border border-slate-300 px-4 py-2 text-sm"
+            value={mode}
+            onChange={(e) => setMode(e.target.value as Mode)}
+          >
+            <option value="swing">스윙</option>
+            <option value="longterm">장기</option>
+            <option value="daytrade">단기</option>
+            <option value="etf">ETF</option>
+          </select>
+        </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-4">
-          <ImageUploader file={file} onFileChange={setFile} />
+        <textarea
+          placeholder="질문을 입력하세요. 예) 지금은 관망이 좋을까요?"
+          className="mt-3 w-full rounded-2xl border border-slate-300 p-3 text-sm"
+          value={symbolForm.userQuestion ?? ""}
+          onChange={(e) => setSymbolForm((prev) => ({ ...prev, userQuestion: e.target.value }))}
+        />
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <input
+            type="file"
+            accept=".png,.jpg,.jpeg,.webp"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm"
+          />
+          <button
+            type="button"
+            onClick={runSymbolAnalysis}
+            className="rounded-full bg-slate-800 px-5 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+            disabled={loading}
+          >
+            종목 분석
+          </button>
           <button
             type="button"
             onClick={runImageAnalysis}
-            className="w-full rounded bg-blue-600 px-4 py-2 font-medium hover:bg-blue-500 disabled:opacity-50"
+            className="rounded-full bg-slate-100 px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50"
             disabled={loading}
           >
-            이미지 분석하기
+            이미지 분석
           </button>
-
-          <section className="rounded-xl border border-slate-700 bg-slate-900 p-4">
-            <h3 className="mb-3 text-lg font-semibold">종목 직접 입력 분석</h3>
-            <div className="grid gap-2">
-              <input
-                placeholder="종목명 (예: QQQ)"
-                className="rounded border border-slate-600 bg-slate-950 p-2 text-sm"
-                value={symbolForm.symbol}
-                onChange={(e) => setSymbolForm((prev) => ({ ...prev, symbol: e.target.value }))}
-              />
-              <input
-                placeholder="시장 (예: NASDAQ)"
-                className="rounded border border-slate-600 bg-slate-950 p-2 text-sm"
-                value={symbolForm.market}
-                onChange={(e) => setSymbolForm((prev) => ({ ...prev, market: e.target.value }))}
-              />
-              <input
-                placeholder="현재가"
-                className="rounded border border-slate-600 bg-slate-950 p-2 text-sm"
-                type="number"
-                value={symbolForm.currentPrice ?? ""}
-                onChange={(e) =>
-                  setSymbolForm((prev) => ({ ...prev, currentPrice: e.target.value ? Number(e.target.value) : null }))
-                }
-              />
-              <textarea
-                placeholder="질문 (예: 지금 보유해야 할까요?)"
-                className="rounded border border-slate-600 bg-slate-950 p-2 text-sm"
-                value={symbolForm.userQuestion ?? ""}
-                onChange={(e) => setSymbolForm((prev) => ({ ...prev, userQuestion: e.target.value }))}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={runSymbolAnalysis}
-              className="mt-3 w-full rounded bg-emerald-600 px-4 py-2 font-medium hover:bg-emerald-500 disabled:opacity-50"
-              disabled={loading}
-            >
-              종목 분석하기
-            </button>
-          </section>
         </div>
+      </section>
 
-        <div className="space-y-4">
-          {loading && <p className="rounded border border-slate-700 bg-slate-900 p-3">분석 중입니다...</p>}
-          {error && <p className="rounded border border-rose-700 bg-rose-900/20 p-3 text-rose-200">{error}</p>}
-          {result && <AnalysisResult result={result} />}
-        </div>
-      </div>
+      {loading && <p className="mb-4 rounded-xl border border-slate-200 bg-white p-3 text-slate-600">분석 중입니다...</p>}
+      {error && <p className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-700">{error}</p>}
+      {result && <AnalysisResult result={result} />}
     </main>
   );
 }

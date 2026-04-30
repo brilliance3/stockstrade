@@ -6,3 +6,5 @@ backend/.venv/
 backend/.env
 frontend/node_modules/
 frontend/dist/
+functions/node_modules/
+functions/lib/
